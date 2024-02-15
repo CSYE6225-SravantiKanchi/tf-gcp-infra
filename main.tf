@@ -6,6 +6,7 @@ provider "google" {
 
 resource "google_compute_network" "my_vpc" {
   name                            = var.vpc_config.name
+  #to avoid creation of default route, we will mark it as false
   delete_default_routes_on_create = var.vpc_config.delete_default_routes_on_create
   auto_create_subnetworks         = var.vpc_config.auto_create_subnetworks
   routing_mode                    = var.vpc_config.routing_mode
@@ -30,7 +31,7 @@ resource "google_compute_route" "webapp_route" {
   next_hop_gateway = var.webapp_route.next_hop_gateway
   priority         = 1000
   description      = "Route for webapp subnet"
-  tags             = var.webapp_route_tags
-
+  #Added this, to make the route accessible to the instaces which have this tag. Hence, we can create an unique tag for all the instances of webapp.
+  tags             = var.webapp_route_tags  
 }
 
