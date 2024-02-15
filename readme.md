@@ -26,7 +26,11 @@ gcloud config set project [PROJECT_ID]
   ```bash
     gcloud auth application-default login
   ```
-    
+   
+- we can enable compute engine via gcloud cli as well
+    ```bash
+    gcloud services enable compute.googleapis.com
+    ```
 - Once done, revoke the auth login.
 
     ```bash
