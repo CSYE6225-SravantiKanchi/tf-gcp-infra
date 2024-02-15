@@ -14,10 +14,11 @@ resource "google_compute_network" "my_vpc" {
 resource "google_compute_subnetwork" "subnets" {
   for_each = { for idx, subnet in var.subnets : idx => subnet }
 
-  name          = each.value.name
-  region        = var.region
-  network       = google_compute_network.my_vpc.self_link
-  ip_cidr_range = each.value.ip_cidr_range
+  name                     = each.value.name
+  region                   = var.region
+  network                  = google_compute_network.my_vpc.self_link
+  ip_cidr_range            = each.value.ip_cidr_range
+  private_ip_google_access = each.value.private_ip_google_access
 }
 
 
@@ -28,7 +29,7 @@ resource "google_compute_route" "webapp_route" {
   next_hop_gateway = var.webapp_route.next_hop_gateway
   priority         = 1000
   description      = "Route for webapp subnet"
-  tags             = ["webapp"]
+  tags             = var.webapp_route_tags
 
 }
 

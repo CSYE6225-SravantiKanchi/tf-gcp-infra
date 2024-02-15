@@ -19,10 +19,15 @@ variable "subnets" {
   type = list(object({
     name          = string
     ip_cidr_range = string
+    private_ip_google_access = bool
   }))
 }
 
 variable "webapp_route" {
   type        = map(any)
   description = "The webapp route configuration"
+}
+
+variable "webapp_route_tags" {
+  type = list(string)
 }
