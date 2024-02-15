@@ -90,8 +90,7 @@ terraform workspace select 'vpc workspace name'
 ```bash
 terraform plan --var-file='use this only if the tfvars name is not terraform.tfvars'
 ```
-4.
-Post-review, apply the changes using the below command.
+4. Post-review, apply the changes using the below command.
 
 ```bash
 terraform apply
