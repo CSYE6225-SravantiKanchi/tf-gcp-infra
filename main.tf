@@ -33,5 +33,5 @@ resource "google_compute_route" "webapp_route" {
   description      = "Route for webapp subnet"
   #Added this, to make the route accessible to the instaces which have this tag. Hence, we can create an unique tag for all the instances of webapp.
   tags             = var.webapp_route_tags  
-}
+
 
