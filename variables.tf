@@ -17,8 +17,8 @@ variable "vpc_config" {
 
 variable "subnets" {
   type = list(object({
-    name          = string
-    ip_cidr_range = string
+    name                     = string
+    ip_cidr_range            = string
     private_ip_google_access = bool
   }))
 }
@@ -30,4 +30,33 @@ variable "webapp_route" {
 
 variable "webapp_route_tags" {
   type = list(string)
+}
+
+variable "custom_image_family_name" {
+  type = string
+}
+
+variable "vm_config" {
+  description = "Configuration for the VM instance."
+  type = object({
+    name         = string
+    machine_type = string
+    zone         = string
+    tags         = list(string)
+    disk_type    = string
+    disk_size    = number
+    allow_http   = bool
+    network_tier = string
+  })
+}
+
+
+variable "allowport" {
+  description = "Configuration for the VM instance."
+  type = object({
+    name          = string
+    protocol      = string
+    source_ranges = list(string)
+    ports         = list(string)
+  })
 }
