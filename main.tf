@@ -5,7 +5,7 @@ provider "google" {
 }
 
 resource "google_compute_network" "my_vpc" {
-  name                            = var.vpc_config.name
+  name = var.vpc_config.name
   #to avoid creation of default route, we will mark it as false
   delete_default_routes_on_create = var.vpc_config.delete_default_routes_on_create
   auto_create_subnetworks         = var.vpc_config.auto_create_subnetworks
@@ -32,6 +32,51 @@ resource "google_compute_route" "webapp_route" {
   priority         = 1000
   description      = "Route for webapp subnet"
   #Added this, to make the route accessible to the instaces which have this tag. Hence, we can create an unique tag for all the instances of webapp.
-  tags             = var.webapp_route_tags  
+  tags = var.webapp_route_tags
+}
+
+data "google_compute_image" "my_image" {
+  family      = var.custom_image_family_name
+  most_recent = true
+}
+resource "google_compute_firewall" "allow_8080" {
+  name    = var.allowport.name
+  network = google_compute_network.my_vpc.name
+  allow {
+    protocol = var.allowport.protocol
+    ports    = var.allowport.ports
+  }
+
+  source_ranges = var.allowport.source_ranges
+}
+
+resource "google_compute_instance" "vm_instance" {
+  name         = var.vm_config.name
+  machine_type = var.vm_config.machine_type
+  zone         = var.vm_config.zone
+
+  tags = var.vm_config.tags
+
+  boot_disk {
+    initialize_params {
+      image = data.google_compute_image.my_image.self_link
+      type  = var.vm_config.disk_type
+      size  = var.vm_config.disk_size
+    }
+  }
+
+
+
+  network_interface {
+    network    = google_compute_network.my_vpc.name
+    subnetwork = google_compute_subnetwork.subnets[0].name
+    access_config {
+      network_tier = var.vm_config.network_tier
+    }
+  }
+
+  metadata = {
+    "allow-http" = var.vm_config.allow_http ? "true" : "false"
+  }
 }
 
