@@ -58,5 +58,6 @@ variable "allowport" {
     protocol      = string
     source_ranges = list(string)
     ports         = list(string)
+    target_tags   = list(string)
   })
 }
