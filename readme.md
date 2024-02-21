@@ -31,25 +31,38 @@ gcloud config set project [PROJECT_ID]
     ```bash
     gcloud services enable compute.googleapis.com
     ```
-- Once done, revoke the auth login.
 
-    ```bash
-    gcloud auth revoke
-    gcloud auth application-default revoke
-    ```
+
+### Infrastructure Components
+1. VPC and Subnets
+A VPC is created to host the infrastructure, providing an isolated network environment.
+
+2. Subnets: Two subnets are configured within the VPC:
+Web Application Subnet: Hosts the web application instances, enabling them to serve traffic to and from the internet.
+Database Subnet: Isolated environment for database instances, enhancing security by restricting direct access from the internet.
+
+3. Custom Route for Web Application
+A custom route is defined specifically for the web application subnet. This route enables outbound traffic to the internet, ensuring that the web application can communicate with external services and users, added a tag to make sure that tag specific instances can only communicate with external services.
+
+4. Firewall Rules
+To secure the network traffic:
+
+Allow Specific Port: A firewall rule is added to allow inbound traffic on the application's port. This rule is crucial for enabling users to access the web application.
+Deny All Traffic: A default rule to deny all other inbound traffic is established, minimizing the exposure to unauthorized access and potential attacks.
 
 ### Terraform variables configuration
 
 create a terraform.tfvars file, and configure the variables with the required setup
 
+So, here we are creating a VPC with two subnets one is for database and other for webapplication, and we have created a custom route spcific to webapplication so that it can send the out bound traffic to internet and for inbound we have added a firewall rule at application port.
 ```bash
 project_id = "test-project"
 region     = "required region"
 vpc_config = {
-  name                            = "vpc-name"
-  delete_default_routes_on_create = true/false
-  auto_create_subnetworks         = true/false
-  routing_mode                    = "required mode"
+  name                            = "vpc-name"  // Name of the VPC
+  delete_default_routes_on_create = true/false   // Whether to delete default routes upon creation
+  auto_create_subnetworks         = true/false   // Auto-creation of subnetworks
+  routing_mode                    = "required mode" // Routing mode, either "REGIONAL" or "GLOBAL"
 }
 
 subnets = [
@@ -70,6 +83,37 @@ webapp_route = {
 webapp_route_tags = [
   "unique tag which we will be adding to the webapp specific instances"
 ]
+
+webapp_route_priority = "test-priority"  // Adjust the priority as needed. Lower numbers indicate higher priority.
+
+custom_image_family_name = "test-image-family"  // add the name of your custom image family here.
+
+vm_config = {
+  name         = "test-vm-name"       // Name of the VM instance.
+  machine_type = "test-machine-type"  // Specify the machine type (e.g., "e2-medium").
+  zone         = "test-zone"          // The zone for VM deployment.
+  tags         = ["test-tag"]         // Network tags for applying firewall and routing rules.
+  disk_type    = "test-disk-type"     // Boot disk type (e.g., "pd-standard", "pd-ssd").
+  disk_size    = "test-disk-size"     // Size of the boot disk in GB.
+  network_tier = "test-network-tier"  // Network tier (e.g., "PREMIUM").
+  subnetwork   = "test-subnetwork"    // Subnetwork name for the VM.
+}
+
+allowport = {
+  name          = "test-rule-name-allow"  // Name of the firewall rule.
+  ports         = ["test-port"]           // Port numbers to allow (e.g., [8080]).
+  protocol      = "test-protocol"         // Protocol to allow (e.g., "tcp").
+  source_ranges = ["test-source-range"]   // ranges allowed to connect.
+  target_tags   = ["test-target-tag"]     // Apply the rule to instances with this tag.
+  priority      = "test-priority-allow"   // Rule priority.
+}
+
+denyall = {
+  name          = "test-rule-name-deny"  // Name of the deny all traffic rule.
+  protocol      = "all"   // Typically "all" to deny all protocols.
+  source_ranges = ["test-source-range"]  //range to apply the deny rule.
+  priority      = "test-priority-deny"   // Rule priority, higher than allow rules.
+}
 
 ```
 
@@ -103,3 +147,9 @@ terraform apply
 ### Conclusion
 
 Follow these step, once done revoke the auth to avoid security issues
+- Once done, revoke the auth login.
+
+    ```bash
+    gcloud auth revoke
+    gcloud auth application-default revoke
+    ```

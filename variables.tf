@@ -32,6 +32,11 @@ variable "webapp_route_tags" {
   type = list(string)
 }
 
+variable "webapp_route_priority" {
+  type = string
+
+}
+
 variable "custom_image_family_name" {
   type = string
 }
@@ -47,17 +52,29 @@ variable "vm_config" {
     disk_size    = number
     allow_http   = bool
     network_tier = string
+    subnetwork   = string
   })
 }
 
 
 variable "allowport" {
-  description = "Configuration for the VM instance."
+  description = "Configuration of firewall for the VM instance."
   type = object({
     name          = string
     protocol      = string
     source_ranges = list(string)
     ports         = list(string)
     target_tags   = list(string)
+    priority      = number
+  })
+}
+
+variable "denyall" {
+  description = "Configuration off firewall for the VM instance."
+  type = object({
+    name          = string
+    protocol      = string
+    source_ranges = list(string)
+    priority      = number
   })
 }

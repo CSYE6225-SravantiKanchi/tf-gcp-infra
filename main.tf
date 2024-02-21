@@ -29,7 +29,7 @@ resource "google_compute_route" "webapp_route" {
   network          = google_compute_network.my_vpc.self_link
   dest_range       = var.webapp_route.dest_range
   next_hop_gateway = var.webapp_route.next_hop_gateway
-  priority         = 1000
+  priority         = var.webapp_route_priority
   description      = "Route for webapp subnet"
   #Added this, to make the route accessible to the instaces which have this tag. Hence, we can create an unique tag for all the instances of webapp.
   tags = var.webapp_route_tags
@@ -47,8 +47,20 @@ resource "google_compute_firewall" "allow_8080" {
     ports    = var.allowport.ports
   }
 
+  priority      = var.allowport.priority
   source_ranges = var.allowport.source_ranges
   target_tags   = var.allowport.target_tags
+}
+
+resource "google_compute_firewall" "deny_all" {
+  name    = var.denyall.name
+  network = google_compute_network.my_vpc.name
+  deny {
+    protocol = var.denyall.protocol
+  }
+
+  priority      = var.denyall.priority
+  source_ranges = var.denyall.source_ranges
 }
 
 resource "google_compute_instance" "vm_instance" {
@@ -66,18 +78,13 @@ resource "google_compute_instance" "vm_instance" {
     }
   }
 
-
-
   network_interface {
     network    = google_compute_network.my_vpc.name
-    subnetwork = google_compute_subnetwork.subnets[0].name
+    subnetwork = var.vm_config.subnetwork
     access_config {
       network_tier = var.vm_config.network_tier
     }
   }
 
-  metadata = {
-    "allow-http" = var.vm_config.allow_http ? "true" : "false"
-  }
 }
 
