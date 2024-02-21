@@ -48,6 +48,7 @@ resource "google_compute_firewall" "allow_8080" {
   }
 
   source_ranges = var.allowport.source_ranges
+  target_tags   = var.allowport.target_tags
 }
 
 resource "google_compute_instance" "vm_instance" {
