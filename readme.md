@@ -34,17 +34,17 @@ gcloud config set project [PROJECT_ID]
 
 
 ### Infrastructure Components
-1. VPC and Subnets
+#### 1. VPC
 A VPC is created to host the infrastructure, providing an isolated network environment.
 
-2. Subnets: Two subnets are configured within the VPC:
+#### 2. Subnets: Two subnets are configured within the VPC:
 Web Application Subnet: Hosts the web application instances, enabling them to serve traffic to and from the internet.
 Database Subnet: Isolated environment for database instances, enhancing security by restricting direct access from the internet.
 
-3. Custom Route for Web Application
-A custom route is defined specifically for the web application subnet. This route enables outbound traffic to the internet, ensuring that the web application can communicate with external services and users, added a tag to make sure that tag specific instances can only communicate with external services.
+#### 3. Custom Route for Web Application
+A custom route is defined specifically for the web application subnet. This route enables outbound traffic to the internet, ensuring that the web application can communicate with external services and users, adding a tag to make sure that tag-specific instances can only communicate with external services.
 
-4. Firewall Rules
+#### 4. Firewall Rules
 To secure the network traffic:
 
 Allow Specific Port: A firewall rule is added to allow inbound traffic on the application's port. This rule is crucial for enabling users to access the web application.
@@ -54,7 +54,6 @@ Deny All Traffic: A default rule to deny all other inbound traffic is establishe
 
 create a terraform.tfvars file, and configure the variables with the required setup
 
-So, here we are creating a VPC with two subnets one is for database and other for webapplication, and we have created a custom route spcific to webapplication so that it can send the out bound traffic to internet and for inbound we have added a firewall rule at application port.
 ```bash
 project_id = "test-project"
 region     = "required region"
