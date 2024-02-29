@@ -73,7 +73,7 @@ resource "google_compute_address" "default" {
 
 
 resource "google_sql_database_instance" "my_cloudsql_instance" {
-  name                = var.cloudsql.tier
+  name                = var.cloudsql.name
   database_version    = var.cloudsql.database_version
   region              = var.region
   deletion_protection = var.cloudsql.delete_protection
