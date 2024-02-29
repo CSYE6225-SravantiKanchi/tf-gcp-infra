@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Check if SQL_URI key exists in the .env file
-if grep -q "^SQL_URIO=" "/home/csye6225/webapp/.env"; then
+if grep -q "^SQL_URI=" "/home/csye6225/webapp/.env"; then
     echo "SQL_URI key already exists in the .env file."
 else
     echo "Adding SQL_URI to the .env file."
