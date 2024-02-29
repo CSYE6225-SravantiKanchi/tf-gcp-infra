@@ -78,3 +78,41 @@ variable "denyall" {
     priority      = number
   })
 }
+
+variable "cloudsql" {
+  description = "Configuration options for the Cloud SQL instance."
+  type = object({
+    name              = string
+    database_version  = string
+    delete_protection = bool
+    tier              = string
+    availability_type = string
+    disk_type         = string
+    disk_size         = number
+    psc_enabled       = bool
+    ipv4_enabled      = bool
+    binary_log_enabled = bool
+    enabled            = bool
+  })
+}
+
+variable "database" {
+  type = object({
+    name   = string
+    port   = string
+    host   = string
+    user   = string
+    subnet = string
+  })
+}
+
+variable "address_type" {
+  type = string
+}
+
+variable "webapp_password" {
+  type = object({
+    length  = string
+    special = string
+  })
+}

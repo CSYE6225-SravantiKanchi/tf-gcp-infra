@@ -63,6 +63,71 @@ resource "google_compute_firewall" "deny_all" {
   source_ranges = var.denyall.source_ranges
 }
 
+resource "google_compute_address" "default" {
+  name         = "compute-address-${google_sql_database_instance.my_cloudsql_instance.name}"
+  region       = var.region
+  address_type = var.address_type
+  subnetwork   = var.database.subnet
+  address      = var.database.host
+}
+
+
+resource "google_sql_database_instance" "my_cloudsql_instance" {
+  name                = var.cloudsql.tier
+  database_version    = var.cloudsql.database_version
+  region              = var.region
+  deletion_protection = var.cloudsql.delete_protection
+
+  settings {
+    tier              = var.cloudsql.tier
+    availability_type = var.cloudsql.availability_type
+    disk_type         = var.cloudsql.disk_type
+    disk_size         = var.cloudsql.disk_size
+    ip_configuration {
+      psc_config {
+        psc_enabled               = var.cloudsql.psc_enabled
+        allowed_consumer_projects = [var.project_id]
+      }
+      ipv4_enabled = var.cloudsql.ipv4_enabled
+    }
+
+    backup_configuration {
+      binary_log_enabled = var.cloudsql.binary_log_enabled
+      enabled            = var.cloudsql.enabled
+    }
+  }
+}
+
+
+
+
+resource "google_compute_forwarding_rule" "default" {
+  name                  = "forwarding-rule-${google_sql_database_instance.my_cloudsql_instance.name}"
+  region                = var.region
+  network               = google_compute_network.my_vpc.id
+  ip_address            = google_compute_address.default.self_link
+  load_balancing_scheme = ""
+  target                = google_sql_database_instance.my_cloudsql_instance.psc_service_attachment_link
+}
+
+
+# Cloud SQL Database and User Configuration
+resource "google_sql_database" "webapp_database" {
+  name     = var.database.name
+  instance = google_sql_database_instance.my_cloudsql_instance.name
+}
+
+resource "random_password" "webapp_password" {
+  length  = var.webapp_password.length
+  special = var.webapp_password.special
+}
+
+resource "google_sql_user" "webapp_user" {
+  name     = var.database.user
+  instance = google_sql_database_instance.my_cloudsql_instance.name
+  password = random_password.webapp_password.result
+}
+
 resource "google_compute_instance" "vm_instance" {
   name         = var.vm_config.name
   machine_type = var.vm_config.machine_type
@@ -85,6 +150,14 @@ resource "google_compute_instance" "vm_instance" {
       network_tier = var.vm_config.network_tier
     }
   }
+
+  metadata_startup_script = templatefile("${path.module}/script.sh.tpl", {
+    name     = google_sql_user.webapp_user.name,
+    password = google_sql_user.webapp_user.password
+    host     = var.database.host
+    port     = var.database.port
+    database = var.database.name
+  })
 
 }
 
