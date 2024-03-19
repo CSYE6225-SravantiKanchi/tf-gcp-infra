@@ -82,15 +82,15 @@ variable "denyall" {
 variable "cloudsql" {
   description = "Configuration options for the Cloud SQL instance."
   type = object({
-    name              = string
-    database_version  = string
-    delete_protection = bool
-    tier              = string
-    availability_type = string
-    disk_type         = string
-    disk_size         = number
-    psc_enabled       = bool
-    ipv4_enabled      = bool
+    name               = string
+    database_version   = string
+    delete_protection  = bool
+    tier               = string
+    availability_type  = string
+    disk_type          = string
+    disk_size          = number
+    psc_enabled        = bool
+    ipv4_enabled       = bool
     binary_log_enabled = bool
     enabled            = bool
   })
@@ -110,9 +110,29 @@ variable "address_type" {
   type = string
 }
 
+variable "dns_zone" {
+  type = string
+}
 variable "webapp_password" {
   type = object({
     length  = string
     special = string
+  })
+}
+
+variable "domain_record" {
+  type = object({
+    name = string
+    type = string
+    ttl  = number
+  })
+}
+
+variable "service_account" {
+  type = object({
+    id           = string
+    scopes       = list(string)
+    display_name = string
+    iam_bindings = list(string)
   })
 }

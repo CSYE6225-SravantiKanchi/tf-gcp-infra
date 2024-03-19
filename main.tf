@@ -128,6 +128,36 @@ resource "google_sql_user" "webapp_user" {
   password = random_password.webapp_password.result
 }
 
+
+#Service account for VM
+resource "google_service_account" "default" {
+  account_id   = var.service_account.id
+  display_name = var.service_account.display_name
+}
+
+
+data "google_service_account" "vm_service_account" {
+  account_id = var.service_account.id
+  depends_on = [google_service_account.default]
+}
+
+#IAM Binding
+
+resource "google_project_iam_binding" "iam_bindings" {
+  for_each = { for idx, binding in var.service_account.iam_bindings : idx => binding }
+
+  project = var.project_id
+  role    = each.value
+
+  members = [
+    "serviceAccount:${data.google_service_account.vm_service_account.email}"
+  ]
+}
+
+data "google_dns_managed_zone" "dns_zone" {
+  name = var.dns_zone
+}
+
 resource "google_compute_instance" "vm_instance" {
   name         = var.vm_config.name
   machine_type = var.vm_config.machine_type
@@ -159,5 +189,18 @@ resource "google_compute_instance" "vm_instance" {
     database = var.database.name
   })
 
+  depends_on = [google_service_account.default]
+
+  service_account {
+    email  = google_service_account.default.email
+    scopes = var.service_account.scopes
+  }
 }
 
+resource "google_dns_record_set" "domain_record" {
+  name         = var.domain_record.name
+  managed_zone = data.google_dns_managed_zone.dns_zone.name
+  type         = var.domain_record.type
+  ttl          = var.domain_record.ttl
+  rrdatas      = [google_compute_instance.vm_instance.network_interface[0].access_config[0].nat_ip]
+}
