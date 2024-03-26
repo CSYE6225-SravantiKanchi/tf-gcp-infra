@@ -136,3 +136,70 @@ variable "service_account" {
     iam_bindings = list(string)
   })
 }
+
+variable "pubsub_topic" {
+  type = object({
+    account_id                 = string
+    display_name               = string
+    name                       = string
+    message_retention_duration = string
+    role                       = string
+  })
+}
+
+variable "pubsub_subscription" {
+  type = object({
+    account_id           = string
+    display_name         = string
+    name                 = string
+    ack_deadline_seconds = number
+    role                 = string
+  })
+}
+
+variable "pubsub_cloudfunction" {
+  type = object({
+    account_id   = string
+    role         = string
+    display_name = string
+  })
+}
+
+variable "archive_dir" {
+  type = object({
+    source_dir  = string
+    output_path = string
+  })
+}
+
+variable "cloudfunction" {
+  type = object({
+    name               = string
+    description        = string
+    runtime            = string
+    entry_point        = string
+    event_type         = string
+    retry_policy       = string
+    max_instance_count = number
+    available_memory   = string
+    timeout_seconds    = number
+
+  })
+}
+variable "cloudfunction_env" {
+  type = object({
+    mailgun_user     = string
+    mailgun_password = string
+  })
+}
+
+variable "vpc_connector" {
+  type = object({
+    name          = string
+    ip_cidr_range = string
+  })
+}
+
+variable "cbucket" {
+  type = string
+}
