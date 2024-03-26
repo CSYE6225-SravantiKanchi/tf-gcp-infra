@@ -204,3 +204,139 @@ resource "google_dns_record_set" "domain_record" {
   ttl          = var.domain_record.ttl
   rrdatas      = [google_compute_instance.vm_instance.network_interface[0].access_config[0].nat_ip]
 }
+
+
+# Create Pub Sub Topic, and IAM Binding
+
+resource "google_service_account" "pubsub_topic_service_account" {
+  account_id   = var.pubsub_topic.account_id
+  display_name = var.pubsub_topic.display_name
+}
+
+resource "google_pubsub_topic_iam_binding" "pubsub_topic_role_binding" {
+  topic = google_pubsub_topic.topic.name
+  role  = var.pubsub_topic.role
+  members = [
+    "serviceAccount:${google_service_account.pubsub_topic_service_account.email}"
+  ]
+}
+resource "google_pubsub_topic" "topic" {
+  name                       = var.pubsub_topic.name
+  message_retention_duration = var.pubsub_topic.message_retention_duration
+}
+
+
+# #Create Subscription and IAM Binding
+resource "google_service_account" "pubsub_subscription_service_account" {
+  account_id   = var.pubsub_subscription.account_id
+  display_name = var.pubsub_subscription.display_name
+}
+
+resource "google_pubsub_subscription" "verify_email_subscription" {
+  name                 = var.pubsub_subscription.name
+  topic                = google_pubsub_topic.topic.name
+  ack_deadline_seconds = var.pubsub_subscription.ack_deadline_seconds
+}
+
+
+resource "google_pubsub_subscription_iam_binding" "pubsub_subscription_role_binding" {
+  role         = var.pubsub_subscription.role
+  subscription = google_pubsub_subscription.verify_email_subscription.name
+  members = [
+    "serviceAccount:${google_service_account.pubsub_subscription_service_account.email}"
+  ]
+}
+
+#Create Cloud Function IAM Binding
+
+resource "google_service_account" "cloud_function_service_account" {
+  account_id   = var.pubsub_cloudfunction.account_id
+  display_name = var.pubsub_cloudfunction.display_name
+}
+
+resource "google_cloudfunctions2_function_iam_binding" "cloud_function_invoker" {
+  cloud_function = google_cloudfunctions2_function.Cloud_function.name
+  role           = var.pubsub_cloudfunction.role
+  members = [
+    "serviceAccount:${google_service_account.cloud_function_service_account.email}",
+  ]
+  depends_on = [google_cloudfunctions2_function.Cloud_function]
+}
+
+data "archive_file" "cloud_function_zip" {
+  type        = "zip"
+  source_dir  = var.archive_dir.source_dir
+  output_path = var.archive_dir.output_path
+}
+
+resource "google_storage_bucket_object" "zip" {
+  source       = data.archive_file.cloud_function_zip.output_path
+  content_type = "application/zip"
+  name         = "src-${data.archive_file.cloud_function_zip.output_md5}.zip"
+  bucket       = google_storage_bucket.Cloud_function_bucket.name
+  depends_on = [
+    google_storage_bucket.Cloud_function_bucket,
+    data.archive_file.cloud_function_zip
+  ]
+}
+
+resource "google_storage_bucket" "Cloud_function_bucket" {
+  name     = var.cbucket
+  location = var.region
+}
+
+resource "google_vpc_access_connector" "cloud_function_vpc_connector" {
+  name          = var.vpc_connector.name
+  region        = var.region                         # Specify the region for the VPC connector
+  network       = google_compute_network.my_vpc.name # Specify the VPC network
+  ip_cidr_range = var.vpc_connector.ip_cidr_range    # Specify theIP address range for the connector (optional)
+}
+
+
+resource "google_cloudfunctions2_function" "Cloud_function" {
+  name        = var.cloudfunction.name
+  location    = var.region
+  description = var.cloudfunction.description
+
+  build_config {
+    runtime     = var.cloudfunction.runtime
+    entry_point = var.cloudfunction.entry_point # Set the entry point
+    source {
+      storage_source {
+        bucket = google_storage_bucket.Cloud_function_bucket.name
+        object = google_storage_bucket_object.zip.name
+      }
+    }
+
+  }
+
+  event_trigger {
+    event_type     = var.cloudfunction.event_type
+    trigger_region = var.region
+    pubsub_topic   = google_pubsub_topic.topic.id
+    retry_policy   = var.cloudfunction.retry_policy
+
+  }
+
+  service_config {
+    max_instance_count    = var.cloudfunction.max_instance_count
+    available_memory      = var.cloudfunction.available_memory
+    timeout_seconds       = var.cloudfunction.timeout_seconds
+    service_account_email = google_service_account.cloud_function_service_account.email
+    vpc_connector         = google_vpc_access_connector.cloud_function_vpc_connector.name
+    environment_variables = {
+      MAILGUN_USER     = var.cloudfunction_env.mailgun_user
+      MAILGUN_PASSWORD = var.cloudfunction_env.mailgun_password
+      SQL_USER         = google_sql_user.webapp_user.name,
+      SQL_PASSWORD     = google_sql_user.webapp_user.password
+      SQL_HOST         = var.database.host
+      SQL_DB           = var.database.name
+    }
+  }
+
+
+  depends_on = [
+    google_storage_bucket.Cloud_function_bucket,
+    google_storage_bucket_object.zip
+  ]
+}
