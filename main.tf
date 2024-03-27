@@ -291,26 +291,18 @@ resource "google_storage_bucket" "Cloud_function_bucket" {
 
 resource "google_vpc_access_connector" "cloud_function_vpc_connector" {
   name          = var.vpc_connector.name
-  region        = var.region                        
-  network       = google_compute_network.my_vpc.name 
+  region        = var.region
+  network       = google_compute_network.my_vpc.name
   ip_cidr_range = var.vpc_connector.ip_cidr_range
 }
 
 
 # # IAM entry for all users to invoke the function
-resource "google_cloudfunctions2_function_iam_member" "invoker" {
-  project        = google_cloudfunctions2_function.Cloud_function.project
-  location         = google_cloudfunctions2_function.Cloud_function.location
-  cloud_function = google_cloudfunctions2_function.Cloud_function.name
-
-  role   = "roles/cloudfunctions.invoker"
-  member = "serviceAccount:${google_service_account.cloud_function_service_account.email}"
-}
-resource "google_cloud_run_service_iam_member" "another_member" {
+resource "google_cloud_run_service_iam_member" "role_member" {
   location = google_cloudfunctions2_function.Cloud_function.location
   service  = google_cloudfunctions2_function.Cloud_function.name
-  role     = "roles/run.invoker"
-  member = "serviceAccount:${google_service_account.cloud_function_service_account.email}"
+  role     = var.cloudfunction.role
+  member   = "serviceAccount:${google_service_account.cloud_function_service_account.email}"
 }
 
 resource "google_cloudfunctions2_function" "Cloud_function" {
@@ -331,10 +323,10 @@ resource "google_cloudfunctions2_function" "Cloud_function" {
   }
 
   event_trigger {
-    event_type     = var.cloudfunction.event_type
-    trigger_region = var.region
-    pubsub_topic   = google_pubsub_topic.topic.id
-    retry_policy   = var.cloudfunction.retry_policy
+    event_type            = var.cloudfunction.event_type
+    trigger_region        = var.region
+    pubsub_topic          = google_pubsub_topic.topic.id
+    retry_policy          = var.cloudfunction.retry_policy
     service_account_email = google_service_account.cloud_function_service_account.email
   }
 
