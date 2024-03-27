@@ -301,7 +301,7 @@ resource "google_vpc_access_connector" "cloud_function_vpc_connector" {
 resource "google_cloud_run_service_iam_member" "role_member" {
   location = google_cloudfunctions2_function.Cloud_function.location
   service  = google_cloudfunctions2_function.Cloud_function.name
-  role     = var.cloudfunction.role
+  role     = var.pubsub_cloudfunction.role
   member   = "serviceAccount:${google_service_account.cloud_function_service_account.email}"
 }
 
