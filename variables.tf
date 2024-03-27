@@ -174,15 +174,16 @@ variable "archive_dir" {
 
 variable "cloudfunction" {
   type = object({
-    name               = string
-    description        = string
-    runtime            = string
-    entry_point        = string
-    event_type         = string
-    retry_policy       = string
-    max_instance_count = number
-    available_memory   = string
-    timeout_seconds    = number
+    name                          = string
+    description                   = string
+    runtime                       = string
+    entry_point                   = string
+    event_type                    = string
+    retry_policy                  = string
+    max_instance_count            = number
+    available_memory              = string
+    timeout_seconds               = number
+    vpc_connector_egress_settings = string
 
   })
 }

@@ -331,11 +331,12 @@ resource "google_cloudfunctions2_function" "Cloud_function" {
   }
 
   service_config {
-    max_instance_count    = var.cloudfunction.max_instance_count
-    available_memory      = var.cloudfunction.available_memory
-    timeout_seconds       = var.cloudfunction.timeout_seconds
-    service_account_email = google_service_account.cloud_function_service_account.email
-    vpc_connector         = google_vpc_access_connector.cloud_function_vpc_connector.name
+    max_instance_count            = var.cloudfunction.max_instance_count
+    available_memory              = var.cloudfunction.available_memory
+    timeout_seconds               = var.cloudfunction.timeout_seconds
+    service_account_email         = google_service_account.cloud_function_service_account.email
+    vpc_connector                 = google_vpc_access_connector.cloud_function_vpc_connector.name
+    vpc_connector_egress_settings = var.cloudfunction.vpc_connector_egress_settings
     environment_variables = {
       MAILGUN_USER     = var.cloudfunction_env.mailgun_user
       MAILGUN_PASSWORD = var.cloudfunction_env.mailgun_password
