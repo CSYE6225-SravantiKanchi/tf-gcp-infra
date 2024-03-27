@@ -297,12 +297,21 @@ resource "google_vpc_access_connector" "cloud_function_vpc_connector" {
 }
 
 
-# # IAM entry for all users to invoke the function
+# IAM entry for all users to invoke the function
 resource "google_cloud_run_service_iam_member" "role_member" {
   location = google_cloudfunctions2_function.Cloud_function.location
   service  = google_cloudfunctions2_function.Cloud_function.name
   role     = var.pubsub_cloudfunction.role
   member   = "serviceAccount:${google_service_account.cloud_function_service_account.email}"
+}
+
+
+resource "google_project_iam_binding" "cloudsql_client_binding" {
+  project = var.project_id
+  role    = var.pubsub_cloudfunction.sqlrole
+  members = [
+    "serviceAccount:${google_service_account.cloud_function_service_account.email}"
+  ]
 }
 
 resource "google_cloudfunctions2_function" "Cloud_function" {

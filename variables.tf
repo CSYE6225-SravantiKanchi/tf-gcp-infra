@@ -162,6 +162,7 @@ variable "pubsub_cloudfunction" {
     account_id   = string
     role         = string
     display_name = string
+    sqlrole      = string
   })
 }
 
