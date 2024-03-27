@@ -1,3 +1,13 @@
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = ">= 4.34.0"
+    }
+  }
+}
+
+
 provider "google" {
   project = var.project_id
   region  = var.region
@@ -254,14 +264,8 @@ resource "google_service_account" "cloud_function_service_account" {
   display_name = var.pubsub_cloudfunction.display_name
 }
 
-resource "google_cloudfunctions2_function_iam_binding" "cloud_function_invoker" {
-  cloud_function = google_cloudfunctions2_function.Cloud_function.name
-  role           = var.pubsub_cloudfunction.role
-  members = [
-    "serviceAccount:${google_service_account.cloud_function_service_account.email}",
-  ]
-  depends_on = [google_cloudfunctions2_function.Cloud_function]
-}
+
+
 
 data "archive_file" "cloud_function_zip" {
   type        = "zip"
@@ -287,11 +291,27 @@ resource "google_storage_bucket" "Cloud_function_bucket" {
 
 resource "google_vpc_access_connector" "cloud_function_vpc_connector" {
   name          = var.vpc_connector.name
-  region        = var.region                         # Specify the region for the VPC connector
-  network       = google_compute_network.my_vpc.name # Specify the VPC network
-  ip_cidr_range = var.vpc_connector.ip_cidr_range    # Specify theIP address range for the connector (optional)
+  region        = var.region                        
+  network       = google_compute_network.my_vpc.name 
+  ip_cidr_range = var.vpc_connector.ip_cidr_range
 }
 
+
+# # IAM entry for all users to invoke the function
+resource "google_cloudfunctions2_function_iam_member" "invoker" {
+  project        = google_cloudfunctions2_function.Cloud_function.project
+  location         = google_cloudfunctions2_function.Cloud_function.location
+  cloud_function = google_cloudfunctions2_function.Cloud_function.name
+
+  role   = "roles/cloudfunctions.invoker"
+  member = "serviceAccount:${google_service_account.cloud_function_service_account.email}"
+}
+resource "google_cloud_run_service_iam_member" "another_member" {
+  location = google_cloudfunctions2_function.Cloud_function.location
+  service  = google_cloudfunctions2_function.Cloud_function.name
+  role     = "roles/run.invoker"
+  member = "serviceAccount:${google_service_account.cloud_function_service_account.email}"
+}
 
 resource "google_cloudfunctions2_function" "Cloud_function" {
   name        = var.cloudfunction.name
@@ -315,7 +335,7 @@ resource "google_cloudfunctions2_function" "Cloud_function" {
     trigger_region = var.region
     pubsub_topic   = google_pubsub_topic.topic.id
     retry_policy   = var.cloudfunction.retry_policy
-
+    service_account_email = google_service_account.cloud_function_service_account.email
   }
 
   service_config {
