@@ -61,6 +61,7 @@ variable "allowport" {
   description = "Configuration of firewall for the VM instance."
   type = object({
     name          = string
+    healthzname   = string
     protocol      = string
     source_ranges = list(string)
     ports         = list(string)
@@ -238,6 +239,8 @@ variable "MIG" {
     portname           = string
     port               = number
     initial_delay_sec  = number
+    distributions      = list(string)
+    dist_type          = string
   })
 
   default = {
@@ -247,6 +250,8 @@ variable "MIG" {
     portname           = "my-port"
     port               = 8080
     initial_delay_sec  = 300
+    distributions      = []
+    dist_type          = "BALANCED"
   }
 
 }
@@ -305,7 +310,7 @@ variable "backend" {
     protocol              = "HTTP"
     port_name             = "my-port"
     load_balancing_scheme = "EXTERNAL"
-    timeout_sec           = 10
+    timeout_sec           = 60
     balancing_mode        = "UTILIZATION"
     capacity_scaler       = 1.0
 
