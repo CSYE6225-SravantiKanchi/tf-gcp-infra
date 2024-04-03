@@ -257,10 +257,9 @@ resource "google_compute_health_check" "autohealing" {
 
 
 resource "google_compute_region_instance_group_manager" "appserver" {
-  name = var.MIG.name
-
-  base_instance_name = var.MIG.base_instance_name
-
+  name                             = var.MIG.name
+  base_instance_name               = var.MIG.base_instance_name
+  distribution_policy_zones        = var.MIG.distributions
   version {
     instance_template = google_compute_region_instance_template.template.self_link
   }
@@ -296,14 +295,14 @@ resource "google_compute_managed_ssl_certificate" "default" {
 # https proxy
 resource "google_compute_target_https_proxy" "default" {
   count            = 1
-  name             = var.https_proxy.named_port
+  name             = var.https_proxy
   url_map          = google_compute_url_map.default.id
   ssl_certificates = [google_compute_managed_ssl_certificate.default.name]
 }
 
 #url mapping
 resource "google_compute_url_map" "default" {
-  name            = var.url_map.named_port
+  name            = var.url_map
   provider        = google-beta
   default_service = google_compute_backend_service.default.id
 }
@@ -315,7 +314,7 @@ resource "google_compute_global_forwarding_rule" "https" {
   name       = var.lb_forwarding_rule.name
   target     = google_compute_target_https_proxy.default[0].self_link
   ip_address = google_compute_global_address.default.address
-  port_range = var.lb_forwarding_rule.port
+  port_range = var.lb_forwarding_rule.port_range
   depends_on = [google_compute_global_address.default]
 
   labels = {}
@@ -350,7 +349,7 @@ resource "google_dns_record_set" "domain_record" {
 
 resource "google_service_account" "pubsub_topic_service_account" {
   account_id   = var.pubsub_topic.account_id
-  display_name = var.pubsub_topic.display_names
+  display_name = var.pubsub_topic.display_name
 }
 
 resource "google_pubsub_topic_iam_binding" "pubsub_topic_role_binding" {
@@ -428,17 +427,19 @@ resource "google_vpc_access_connector" "cloud_function_vpc_connector" {
 
 
 # IAM entry for all users to invoke the function
-resource "google_cloud_run_service_iam_member" "role_member" {
-  location = google_cloudfunctions2_function.Cloud_function.location
-  service  = google_cloudfunctions2_function.Cloud_function.name
-  role     = var.pubsub_cloudfunction.role
-  member   = "serviceAccount:${google_service_account.cloud_function_service_account.email}"
-}
-
-
 resource "google_project_iam_binding" "cloudsql_client_binding" {
   project = var.project_id
   role    = var.pubsub_cloudfunction.sqlrole
+  members = [
+    "serviceAccount:${google_service_account.cloud_function_service_account.email}"
+  ]
+}
+
+
+resource "google_cloud_run_service_iam_binding" "role1_member" {
+  project = var.project_id
+  role    = var.pubsub_cloudfunction.role
+  service = google_cloudfunctions2_function.Cloud_function.name
   members = [
     "serviceAccount:${google_service_account.cloud_function_service_account.email}"
   ]
