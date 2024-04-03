@@ -14,6 +14,12 @@ provider "google" {
 
 }
 
+provider "google-beta" {
+  project = var.project_id
+  region  = var.region
+
+}
+
 resource "google_compute_network" "my_vpc" {
   name = var.vpc_config.name
   #to avoid creation of default route, we will mark it as false
@@ -58,8 +64,22 @@ resource "google_compute_firewall" "allow_8080" {
   }
 
   priority      = var.allowport.priority
-  source_ranges = var.allowport.source_ranges
   target_tags   = var.allowport.target_tags
+  source_ranges = [google_compute_global_address.default.address]
+  depends_on    = [google_compute_global_address.default]
+}
+
+resource "google_compute_firewall" "allow_healthz" {
+  name    = var.allowport.healthzname
+  network = google_compute_network.my_vpc.name
+  allow {
+    protocol = var.allowport.protocol
+    ports    = var.allowport.ports
+  }
+
+  priority      = var.allowport.priority
+  target_tags   = var.allowport.target_tags
+  source_ranges = var.allowport.source_ranges
 }
 
 resource "google_compute_firewall" "deny_all" {
@@ -168,24 +188,26 @@ data "google_dns_managed_zone" "dns_zone" {
   name = var.dns_zone
 }
 
-resource "google_compute_instance" "vm_instance" {
+resource "google_compute_region_instance_template" "template" {
   name         = var.vm_config.name
   machine_type = var.vm_config.machine_type
-  zone         = var.vm_config.zone
+  tags         = var.vm_config.tags
+  metadata     = {}
+  disk {
+    source_image          = data.google_compute_image.my_image.self_link
+    type                  = var.vm_config.disk_type
+    auto_delete           = true
+    boot                  = true
+    labels                = {}
+    resource_manager_tags = {}
+    resource_policies     = []
 
-  tags = var.vm_config.tags
-
-  boot_disk {
-    initialize_params {
-      image = data.google_compute_image.my_image.self_link
-      type  = var.vm_config.disk_type
-      size  = var.vm_config.disk_size
-    }
   }
 
   network_interface {
-    network    = google_compute_network.my_vpc.name
-    subnetwork = var.vm_config.subnetwork
+    network     = google_compute_network.my_vpc.name
+    subnetwork  = var.vm_config.subnetwork
+    queue_count = 0
     access_config {
       network_tier = var.vm_config.network_tier
     }
@@ -198,7 +220,6 @@ resource "google_compute_instance" "vm_instance" {
     port     = var.database.port
     database = var.database.name
   })
-
   depends_on = [google_service_account.default]
 
   service_account {
@@ -207,12 +228,121 @@ resource "google_compute_instance" "vm_instance" {
   }
 }
 
+resource "google_compute_region_autoscaler" "autoscaler" {
+  name   = var.autoscalar.name
+  target = google_compute_region_instance_group_manager.appserver.self_link
+  autoscaling_policy {
+    min_replicas = var.autoscalar.min
+    max_replicas = var.autoscalar.max
+    cpu_utilization {
+      target = var.autoscalar.cpu_utilization_target
+    }
+  }
+}
+
+
+
+resource "google_compute_health_check" "autohealing" {
+  name                = var.autohealing.name
+  check_interval_sec  = var.autohealing.check_interval_sec
+  timeout_sec         = var.autohealing.timeout_sec
+  healthy_threshold   = var.autohealing.healthy_threshold
+  unhealthy_threshold = var.autohealing.unhealthy_threshold
+  http_health_check {
+    request_path = var.autohealing.request_path
+    port         = var.autohealing.port
+  }
+}
+
+
+
+resource "google_compute_region_instance_group_manager" "appserver" {
+  name = var.MIG.name
+
+  base_instance_name = var.MIG.base_instance_name
+
+  version {
+    instance_template = google_compute_region_instance_template.template.self_link
+  }
+  target_size = var.MIG.target_size
+  named_port {
+    name = var.MIG.portname
+    port = var.MIG.port
+  }
+
+  auto_healing_policies {
+    health_check      = google_compute_health_check.autohealing.id
+    initial_delay_sec = var.MIG.initial_delay_sec
+  }
+
+  depends_on = [google_compute_region_instance_template.template]
+}
+
+# reserved IP address
+resource "google_compute_global_address" "default" {
+  provider = google-beta
+  name     = var.lb_address
+}
+
+resource "google_compute_managed_ssl_certificate" "default" {
+  name = var.ssl.name
+
+  managed {
+    domains = var.ssl.domains
+  }
+}
+
+
+# https proxy
+resource "google_compute_target_https_proxy" "default" {
+  count            = 1
+  name             = var.https_proxy.named_port
+  url_map          = google_compute_url_map.default.id
+  ssl_certificates = [google_compute_managed_ssl_certificate.default.name]
+}
+
+#url mapping
+resource "google_compute_url_map" "default" {
+  name            = var.url_map.named_port
+  provider        = google-beta
+  default_service = google_compute_backend_service.default.id
+}
+
+
+resource "google_compute_global_forwarding_rule" "https" {
+  provider   = google-beta
+  count      = 1
+  name       = var.lb_forwarding_rule.name
+  target     = google_compute_target_https_proxy.default[0].self_link
+  ip_address = google_compute_global_address.default.address
+  port_range = var.lb_forwarding_rule.port
+  depends_on = [google_compute_global_address.default]
+
+  labels = {}
+}
+
+resource "google_compute_backend_service" "default" {
+  name                  = var.backend.name
+  provider              = google-beta
+  protocol              = var.backend.protocol
+  port_name             = var.backend.port_name
+  load_balancing_scheme = var.backend.load_balancing_scheme
+  timeout_sec           = var.backend.timeout_sec
+  health_checks         = [google_compute_health_check.autohealing.id]
+  backend {
+    group           = google_compute_region_instance_group_manager.appserver.instance_group
+    balancing_mode  = var.backend.balancing_mode
+    capacity_scaler = var.backend.capacity_scaler
+  }
+}
+
+
 resource "google_dns_record_set" "domain_record" {
   name         = var.domain_record.name
   managed_zone = data.google_dns_managed_zone.dns_zone.name
   type         = var.domain_record.type
   ttl          = var.domain_record.ttl
-  rrdatas      = [google_compute_instance.vm_instance.network_interface[0].access_config[0].nat_ip]
+  rrdatas      = [google_compute_global_address.default.address]
 }
 
 
@@ -220,7 +350,7 @@ resource "google_dns_record_set" "domain_record" {
 
 resource "google_service_account" "pubsub_topic_service_account" {
   account_id   = var.pubsub_topic.account_id
-  display_name = var.pubsub_topic.display_name
+  display_name = var.pubsub_topic.display_names
 }
 
 resource "google_pubsub_topic_iam_binding" "pubsub_topic_role_binding" {

@@ -205,3 +205,110 @@ variable "vpc_connector" {
 variable "cbucket" {
   type = string
 }
+
+
+variable "autoscalar" {
+  type = object({
+    name                   = string
+    min                    = string
+    max                    = string
+    cpu_utilization_target = number
+  })
+}
+
+variable "autohealing" {
+  type = object({
+    name                = string
+    check_interval_sec  = number
+    timeout_sec         = number
+    healthy_threshold   = number
+    unhealthy_threshold = number
+    request_path        = string
+    port                = string
+  })
+}
+
+
+variable "MIG" {
+
+  type = object({
+    name               = string
+    base_instance_name = string
+    target_size        = number
+    portname           = string
+    port               = number
+    initial_delay_sec  = number
+  })
+
+  default = {
+    name               = "appserver-igm-1"
+    base_instance_name = "app"
+    target_size        = 2
+    portname           = "my-port"
+    port               = 8080
+    initial_delay_sec  = 300
+  }
+
+}
+
+variable "lb_address" {
+  type    = string
+  default = "l7-xlb-static-ip"
+}
+
+variable "ssl" {
+  type = object({
+    name    = string
+    domains = list(string)
+  })
+  default = {
+    name    = "test-cert"
+    domains = ["sravantikanchicsye6225.site."]
+  }
+
+}
+
+
+variable "url_map" {
+  type    = string
+  default = "l7-xlb-url-map"
+}
+
+variable "https_proxy" {
+  type    = string
+  default = "l7-xlb-target-https-proxy"
+}
+variable "lb_forwarding_rule" {
+
+  type = object({
+    name       = string
+    port_range = string
+  })
+  default = {
+    name       = "l7-xlb-forwarding-rule"
+    port_range = "443"
+  }
+}
+
+variable "backend" {
+  type = object({
+    name                  = string
+    protocol              = string
+    port_name             = string
+    load_balancing_scheme = string
+    timeout_sec           = number
+    balancing_mode        = string
+    capacity_scaler       = number
+  })
+  default = {
+    name                  = "l7-xlb-backend-service"
+    protocol              = "HTTP"
+    port_name             = "my-port"
+    load_balancing_scheme = "EXTERNAL"
+    timeout_sec           = 10
+    balancing_mode        = "UTILIZATION"
+    capacity_scaler       = 1.0
+
+  }
+}
+
