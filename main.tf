@@ -69,6 +69,34 @@ resource "google_compute_firewall" "allow_8080" {
   depends_on    = [google_compute_global_address.default]
 }
 
+resource "google_kms_key_ring" "my_key_ring" {
+  name     = "my-key-ring"
+  location = var.region
+}
+
+resource "google_kms_crypto_key" "vm_crypto_key" {
+  name            = "vm-crypto-key"
+  key_ring        = google_kms_key_ring.my_key_ring.id
+  rotation_period = "2592000s" # 30 days in seconds (30 * 24 * 60 * 60)
+  depends_on      = [google_kms_key_ring.my_key_ring]
+}
+
+# Create a Customer-Managed Encryption Key (CMEK) for Cloud SQL Instances
+resource "google_kms_crypto_key" "sql_crypto_key" {
+  name            = "sql-crypto-key"
+  key_ring        = google_kms_key_ring.my_key_ring.id
+  rotation_period = "2592000s" # 30 days in seconds (30 * 24 * 60 * 60)
+  depends_on      = [google_kms_key_ring.my_key_ring]
+}
+
+# Create a Customer-Managed Encryption Key (CMEK) for Cloud Storage Buckets
+resource "google_kms_crypto_key" "storage_crypto_key" {
+  name            = "storage-crypto-key"
+  key_ring        = google_kms_key_ring.my_key_ring.id
+  rotation_period = "2592000s" # 30 days in seconds (30 * 24 * 60 * 60)
+  depends_on      = [google_kms_key_ring.my_key_ring]
+}
+
 resource "google_compute_firewall" "allow_healthz" {
   name    = var.allowport.healthzname
   network = google_compute_network.my_vpc.name
@@ -101,12 +129,28 @@ resource "google_compute_address" "default" {
   address      = var.database.host
 }
 
+resource "google_project_service_identity" "gcp_sa_cloud_sql" {
+  provider = google-beta
+  service  = "sqladmin.googleapis.com"
+}
+
+resource "google_kms_crypto_key_iam_binding" "crypto_key" {
+  provider      = google-beta
+  crypto_key_id = google_kms_crypto_key.sql_crypto_key.id
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+
+  members = [
+    "serviceAccount:${google_project_service_identity.gcp_sa_cloud_sql.email}",
+  ]
+}
+
 
 resource "google_sql_database_instance" "my_cloudsql_instance" {
   name                = var.cloudsql.name
   database_version    = var.cloudsql.database_version
   region              = var.region
   deletion_protection = var.cloudsql.delete_protection
+  encryption_key_name = google_kms_crypto_key.sql_crypto_key.id
 
   settings {
     tier              = var.cloudsql.tier
@@ -126,6 +170,8 @@ resource "google_sql_database_instance" "my_cloudsql_instance" {
       enabled            = var.cloudsql.enabled
     }
   }
+
+  depends_on = [google_kms_crypto_key_iam_binding.crypto_key]
 }
 
 
@@ -195,12 +241,24 @@ resource "google_compute_region_instance_template" "template" {
   metadata     = {}
   disk {
     source_image          = data.google_compute_image.my_image.self_link
-    type                  = var.vm_config.disk_type
+    disk_type             = var.vm_config.disk_type
+    disk_size_gb          = var.vm_config.disk_size
     auto_delete           = true
     boot                  = true
     labels                = {}
     resource_manager_tags = {}
     resource_policies     = []
+    disk_encryption_key {
+      kms_key_self_link = google_kms_crypto_key.vm_crypto_key.id
+    }
+
+    source_snapshot_encryption_key {
+      kms_key_self_link = google_kms_crypto_key.vm_crypto_key.id
+
+    }
+    source_image_encryption_key {
+      kms_key_self_link = google_kms_crypto_key.vm_crypto_key.id
+    }
 
   }
 
@@ -416,6 +474,9 @@ resource "google_storage_bucket_object" "zip" {
 resource "google_storage_bucket" "Cloud_function_bucket" {
   name     = var.cbucket
   location = var.region
+  encryption {
+    default_kms_key_name = google_kms_crypto_key.storage_crypto_key.name
+  }
 }
 
 resource "google_vpc_access_connector" "cloud_function_vpc_connector" {
