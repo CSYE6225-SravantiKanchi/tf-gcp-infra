@@ -317,3 +317,13 @@ variable "backend" {
   }
 }
 
+variable "keys" {
+  type = object({
+    keyring         = string
+    vm              = string
+    cloudstorage    = string
+    cloudsql        = string
+    rotation_period = string
+    role            = string
+  })
+}
