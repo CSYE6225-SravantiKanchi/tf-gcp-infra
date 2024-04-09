@@ -29,6 +29,9 @@ resource "google_compute_network" "my_vpc" {
 
 }
 
+data "google_project" "project" {}
+
+
 resource "google_compute_subnetwork" "subnets" {
   for_each = { for idx, subnet in var.subnets : idx => subnet }
 
@@ -70,30 +73,28 @@ resource "google_compute_firewall" "allow_8080" {
 }
 
 resource "google_kms_key_ring" "my_key_ring" {
-  name     = "my-key-ring"
+  name     = var.keys.keyring
   location = var.region
 }
 
 resource "google_kms_crypto_key" "vm_crypto_key" {
-  name            = "vm-crypto-key"
+  name            = var.keys.vm
   key_ring        = google_kms_key_ring.my_key_ring.id
-  rotation_period = "2592000s" # 30 days in seconds (30 * 24 * 60 * 60)
+  rotation_period = var.keys.rotation_period
   depends_on      = [google_kms_key_ring.my_key_ring]
 }
 
-# Create a Customer-Managed Encryption Key (CMEK) for Cloud SQL Instances
 resource "google_kms_crypto_key" "sql_crypto_key" {
-  name            = "sql-crypto-key"
+  name            = var.keys.cloudsql
   key_ring        = google_kms_key_ring.my_key_ring.id
-  rotation_period = "2592000s" # 30 days in seconds (30 * 24 * 60 * 60)
+  rotation_period = var.keys.rotation_period
   depends_on      = [google_kms_key_ring.my_key_ring]
 }
 
-# Create a Customer-Managed Encryption Key (CMEK) for Cloud Storage Buckets
 resource "google_kms_crypto_key" "storage_crypto_key" {
-  name            = "storage-crypto-key"
+  name            = var.keys.cloudstorage
   key_ring        = google_kms_key_ring.my_key_ring.id
-  rotation_period = "2592000s" # 30 days in seconds (30 * 24 * 60 * 60)
+  rotation_period = var.keys.rotation_period
   depends_on      = [google_kms_key_ring.my_key_ring]
 }
 
@@ -137,10 +138,24 @@ resource "google_project_service_identity" "gcp_sa_cloud_sql" {
 resource "google_kms_crypto_key_iam_binding" "crypto_key" {
   provider      = google-beta
   crypto_key_id = google_kms_crypto_key.sql_crypto_key.id
-  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+  role          = var.keys.role
 
   members = [
     "serviceAccount:${google_project_service_identity.gcp_sa_cloud_sql.email}",
+  ]
+}
+
+
+
+resource "google_kms_crypto_key_iam_binding" "crypto_key_vm" {
+  provider      = google-beta
+  crypto_key_id = google_kms_crypto_key.vm_crypto_key.id
+  role          = var.keys.role
+
+  members = [
+    "serviceAccount:${data.google_project.project.number}@cloudservices.gserviceaccount.com",
+    "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com",
+    "serviceAccount:service-${data.google_project.project.number}@compute-system.iam.gserviceaccount.com"
   ]
 }
 
@@ -278,7 +293,7 @@ resource "google_compute_region_instance_template" "template" {
     port     = var.database.port
     database = var.database.name
   })
-  depends_on = [google_service_account.default]
+  depends_on = [google_service_account.default, google_kms_crypto_key.vm_crypto_key]
 
   service_account {
     email  = google_service_account.default.email
@@ -315,9 +330,9 @@ resource "google_compute_health_check" "autohealing" {
 
 
 resource "google_compute_region_instance_group_manager" "appserver" {
-  name                             = var.MIG.name
-  base_instance_name               = var.MIG.base_instance_name
-  distribution_policy_zones        = var.MIG.distributions
+  name                      = var.MIG.name
+  base_instance_name        = var.MIG.base_instance_name
+  distribution_policy_zones = var.MIG.distributions
   version {
     instance_template = google_compute_region_instance_template.template.self_link
   }
@@ -460,6 +475,16 @@ data "archive_file" "cloud_function_zip" {
   output_path = var.archive_dir.output_path
 }
 
+resource "google_kms_crypto_key_iam_binding" "crypto_key_storage" {
+  provider      = google-beta
+  crypto_key_id = google_kms_crypto_key.storage_crypto_key.id
+  role          = var.keys.role
+
+  members = [
+    "serviceAccount:service-${data.google_project.project.number}@gs-project-accounts.iam.gserviceaccount.com"
+  ]
+}
+
 resource "google_storage_bucket_object" "zip" {
   source       = data.archive_file.cloud_function_zip.output_path
   content_type = "application/zip"
@@ -475,8 +500,10 @@ resource "google_storage_bucket" "Cloud_function_bucket" {
   name     = var.cbucket
   location = var.region
   encryption {
-    default_kms_key_name = google_kms_crypto_key.storage_crypto_key.name
+    default_kms_key_name = google_kms_crypto_key.storage_crypto_key.id
   }
+
+  depends_on = [google_kms_crypto_key_iam_binding.crypto_key_storage]
 }
 
 resource "google_vpc_access_connector" "cloud_function_vpc_connector" {
