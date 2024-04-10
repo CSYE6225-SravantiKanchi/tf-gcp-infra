@@ -266,15 +266,6 @@ resource "google_compute_region_instance_template" "template" {
     disk_encryption_key {
       kms_key_self_link = google_kms_crypto_key.vm_crypto_key.id
     }
-
-    source_snapshot_encryption_key {
-      kms_key_self_link = google_kms_crypto_key.vm_crypto_key.id
-
-    }
-    source_image_encryption_key {
-      kms_key_self_link = google_kms_crypto_key.vm_crypto_key.id
-    }
-
   }
 
   network_interface {
